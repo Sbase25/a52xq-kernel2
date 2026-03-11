@@ -16,15 +16,18 @@
 
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
 
+TARGET_HAS_UDFPS := true
+TARGET_HAS_AMOLED := true
+
 # call the common setup
 $(call inherit-product, device/samsung/sm7225-common/common.mk)
 
 # call the proprietary setup
-$(call inherit-product, vendor/samsung/m23xq/m23xq-vendor.mk)
+$(call inherit-product, vendor/samsung/a52xq/a52xq-vendor.mk)
 
 # Init files
 PRODUCT_PACKAGES += \
-    init.m23xq.rc
+    init.a52xq.rc
 
 # Audio
 PRODUCT_COPY_FILES += \

@@ -4,8 +4,8 @@
 //
 
 prebuilt_etc {
-    name: "init.m23xq.rc",
-    src: "init.m23xq.rc",
+    name: "init.a52xq.rc",
+    src: "init.a52xq.rc",
     sub_dir: "init/hw",
     soc_specific: true,
 }

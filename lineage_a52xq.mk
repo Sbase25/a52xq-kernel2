@@ -1,21 +1,10 @@
 #
-# Copyright (C) 2025 The LineageOS Project
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-License-Identifier: Apache-2.0
 #
 
 # Inherit device configuration
-$(call inherit-product, device/samsung/m23xq/device.mk)
+$(call inherit-product, device/samsung/a52xq/device.mk)
 
 # Inherit from the 64 bit configuration
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
@@ -35,25 +24,25 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/developer_gsi_keys.mk)
 # Boot animation
 TARGET_BOOTANIMATION_PRELOAD := true
 TARGET_BOOTANIMATION_TEXTURE_CACHE := true
-TARGET_SCREEN_HEIGHT := 2408
+TARGET_SCREEN_HEIGHT := 2400
 TARGET_SCREEN_WIDTH := 1080
 
 ## Device identifier. This must come after all inclusions
-PRODUCT_NAME := lineage_m23xq
-PRODUCT_DEVICE := m23xq
+PRODUCT_NAME := lineage_a52xq
+PRODUCT_DEVICE := a52xq
 PRODUCT_BRAND := samsung
-PRODUCT_MODEL := SM-M236B
+PRODUCT_MODEL := SM-A526B
 PRODUCT_MANUFACTURER := samsung
 PRODUCT_GMS_CLIENTID_BASE := android-samsung
 
-PRODUCT_SHIPPING_API_LEVEL := 31
+PRODUCT_SHIPPING_API_LEVEL := 30
 
 # Security patch
-VENDOR_SECURITY_PATCH := 2026-01-01
+VENDOR_SECURITY_PATCH := 2025-03-01
 
 TARGET_SUPPORTS_OMX_SERVICE := false
 
 # Fingerprint
 PRODUCT_BUILD_PROP_OVERRIDES += \
-    BuildFingerprint="samsung/m23xqxx/qssi:14/UP1A.231005.007/M236BXXSDEYL2:user/release-keys" \
-    BuildDesc="m23xqxx-user 14 UP1A.231005.007 M236BXXSDEYL2 release-keys"
+    BuildFingerprint="samsung/a52xqxx/qssi:14/UP1A.231005.007/A526BXXSCGYC2:user/release-keys" \
+    BuildDesc="a52xqxx-user 14 UP1A.231005.007 A526BXXSCGYC2 release-keys"

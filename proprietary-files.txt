@@ -1,4 +1,6 @@
-# All blobs are from M236BXXSDEYL2, unless pinned
+# All blobs are from A526BXXSCGYC1, unless pinned
+
+# TODO: Update for a52xq, this is from m23xq
 
 # ACDB
 vendor/etc/audconf/OPEN/Bluetooth_cal.acdb
