@@ -1,0 +1,53 @@
+name: Build Kernel
+
+on:
+  push:
+    branches: [ lineage-23.2 ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          repository: samsung-sm7225/android_kernel_samsung_sm7225
+          ref: lineage-23.2
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y bc bison flex libssl-dev \
+            libelf-dev python3 python-is-python3 \
+            gcc-aarch64-linux-gnu
+
+      - name: Download clang toolchain
+        run: |
+          mkdir -p ~/toolchains/clang
+          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r487747c.tar.gz
+          tar -xf clang-r487747c.tar.gz -C ~/toolchains/clang
+
+      - name: Build kernel
+        run: |
+          export ARCH=arm64
+          export PATH="$HOME/toolchains/clang/bin:$PATH"
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          export CROSS_COMPILE=aarch64-linux-gnu-
+
+          make -j$(nproc) O=out \
+            ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 \
+            vendor/a52xq_eur_open_defconfig
+
+          make -j$(nproc) O=out \
+            ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1
+
+      - name: Upload kernel image
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-a52xq
+          path: |
+            out/arch/arm64/boot/Image.gz
+            out/arch/arm64/boot/dtbo.img
