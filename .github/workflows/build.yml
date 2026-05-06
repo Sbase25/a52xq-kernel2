@@ -22,26 +22,27 @@ jobs:
           sudo apt update
           sudo apt install -y bc bison flex libssl-dev libelf-dev \
             python3 python-is-python3 gcc-aarch64-linux-gnu \
-            build-essential libncurses-dev xz-utils libssl-dev \
-            ccache
+            build-essential libncurses-dev xz-utils ccache curl
 
-      - name: Download Clang Toolchain
+      - name: Download Proton Clang
         run: |
           mkdir -p $GITHUB_WORKSPACE/toolchains/clang
-          # Using a stable, prebuilt Clang 17 mirror (compatible with Lineage 23/Android 14+ bases)
-          curl -LSs "https://github.com/ZyCromerZ/Clang/releases/download/17.0.0-20230522/Clang-17.0.0-20230522.tar.gz" -o clang.tar.gz
-          tar -xf clang.tar.gz -C $GITHUB_WORKSPACE/toolchains/clang
-          rm clang.tar.gz
+          # Using Proton Clang - highly stable and widely used for Android kernels
+          curl -LO "https://github.com/kdrag0n/proton-clang/archive/refs/heads/master.tar.gz"
+          tar -xf master.tar.gz --strip-components=1 -C $GITHUB_WORKSPACE/toolchains/clang
+          rm master.tar.gz
 
       - name: Build kernel
         run: |
-          # Setup Path and Environment
           export ARCH=arm64
           export KBUILD_BUILD_USER="Gemini"
           export KBUILD_BUILD_HOST="GitHub-Actions"
+          
+          # Add Clang to PATH
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$PATH"
           
-          # Compiler flags
+          # Set compiler arguments
+          # Note: We use the bundled cross-compilers inside Proton Clang for better compatibility
           MAKE_ARGS="ARCH=arm64 \
             O=out \
             CC=clang \
@@ -50,10 +51,10 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1"
 
-          # Configuration
+          # 1. Sync configuration
           make $MAKE_ARGS vendor/a52xq_eur_open_defconfig
 
-          # Build
+          # 2. Build the kernel
           make -j$(nproc --all) $MAKE_ARGS
 
       - name: Upload kernel image
