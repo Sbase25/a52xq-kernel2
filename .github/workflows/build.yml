@@ -1,62 +1,30 @@
-name: Build Kernel
-
-on:
-  push:
-    branches: [ lineage-23.2 ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout kernel source
-        uses: actions/checkout@v4
-        with:
-          repository: samsung-sm7225/android_kernel_samsung_sm7225
-          ref: lineage-23.2
-          fetch-depth: 1
-
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y bc bison flex libssl-dev libelf-dev \
-            python3 python-is-python3 gcc-aarch64-linux-gnu \
-            build-essential libncurses-dev xz-utils curl git lz4 liblz4-tool
-
-      - name: Download Proton Clang
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/toolchains/clang
-          curl -LO "https://github.com/kdrag0n/proton-clang/archive/refs/heads/master.tar.gz"
-          tar -xf master.tar.gz --strip-components=1 -C $GITHUB_WORKSPACE/toolchains/clang
-          rm master.tar.gz
-
-      - name: Build kernel
+- name: Build kernel
         run: |
           export ARCH=arm64
-          export KBUILD_BUILD_USER="Gemini"
+          export KBUILD_BUILD_USER="Sbase25"
           export KBUILD_BUILD_HOST="GitHub-Actions"
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$PATH"
           
-          # Defined arguments (Removed the incompatible flag that caused the previous crash)
+          # Added KCFLAGS to bypass the bfq-iosched.c argument error
           MAKE_ARGS="ARCH=arm64 \
             O=out \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             LLVM=1 \
-            LLVM_IAS=1"
+            LLVM_IAS=1 \
+            KCFLAGS=-Wno-implicit-function-declaration -Wno-argument-mismatch"
 
           mkdir -p out
 
-          # Determine Base Config (Lito = SM7225)
+          # Identify Base Config
           if [ -f "arch/arm64/configs/vendor/lito-perf_defconfig" ]; then
               BASE_CONF="vendor/lito-perf_defconfig"
           else
               BASE_CONF="vendor/lito_defconfig"
           fi
 
-          # 1. Generate base config
+          # 1. Generate config
           make $MAKE_ARGS $BASE_CONF
 
           # 2. Merge Samsung Fragment
@@ -67,12 +35,3 @@ jobs:
 
           # 3. Compile
           make -j$(nproc --all) $MAKE_ARGS
-
-      - name: Upload kernel image
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-a52xq
-          path: |
-            out/arch/arm64/boot/Image
-            out/arch/arm64/boot/Image.gz
-            out/arch/arm64/boot/dtbo.img
