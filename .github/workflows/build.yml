@@ -22,12 +22,11 @@ jobs:
           sudo apt update
           sudo apt install -y bc bison flex libssl-dev libelf-dev \
             python3 python-is-python3 gcc-aarch64-linux-gnu \
-            build-essential libncurses-dev xz-utils ccache curl
+            build-essential libncurses-dev xz-utils curl git
 
       - name: Download Proton Clang
         run: |
           mkdir -p $GITHUB_WORKSPACE/toolchains/clang
-          # Using Proton Clang - highly stable and widely used for Android kernels
           curl -LO "https://github.com/kdrag0n/proton-clang/archive/refs/heads/master.tar.gz"
           tar -xf master.tar.gz --strip-components=1 -C $GITHUB_WORKSPACE/toolchains/clang
           rm master.tar.gz
@@ -37,24 +36,24 @@ jobs:
           export ARCH=arm64
           export KBUILD_BUILD_USER="Gemini"
           export KBUILD_BUILD_HOST="GitHub-Actions"
-          
-          # Add Clang to PATH
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$PATH"
           
-          # Set compiler arguments
-          # Note: We use the bundled cross-compilers inside Proton Clang for better compatibility
+          # Arguments for the make command
+          # Note: Added CLANG_TRIPLE to help the compiler find the right headers
           MAKE_ARGS="ARCH=arm64 \
             O=out \
             CC=clang \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             LLVM=1 \
             LLVM_IAS=1"
 
-          # 1. Sync configuration
+          # Step 1: Initialize the configuration
+          # We use the 'vendor/' prefix because it's a subfolder in arch/arm64/configs
           make $MAKE_ARGS vendor/a52xq_eur_open_defconfig
 
-          # 2. Build the kernel
+          # Step 2: Build the Image and DTBO
           make -j$(nproc --all) $MAKE_ARGS
 
       - name: Upload kernel image
@@ -62,5 +61,6 @@ jobs:
         with:
           name: kernel-a52xq
           path: |
+            out/arch/arm64/boot/Image
             out/arch/arm64/boot/Image.gz
             out/arch/arm64/boot/dtbo.img
