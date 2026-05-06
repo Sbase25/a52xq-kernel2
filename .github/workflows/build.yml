@@ -1,37 +1,4 @@
-name: Build Kernel
-
-on:
-  push:
-    branches: [ lineage-23.2 ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout kernel source
-        uses: actions/checkout@v4
-        with:
-          repository: samsung-sm7225/android_kernel_samsung_sm7225
-          ref: lineage-23.2
-          fetch-depth: 1
-
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y bc bison flex libssl-dev libelf-dev \
-            python3 python-is-python3 gcc-aarch64-linux-gnu \
-            build-essential libncurses-dev xz-utils curl git
-
-      - name: Download Proton Clang
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/toolchains/clang
-          curl -LO "https://github.com/kdrag0n/proton-clang/archive/refs/heads/master.tar.gz"
-          tar -xf master.tar.gz --strip-components=1 -C $GITHUB_WORKSPACE/toolchains/clang
-          rm master.tar.gz
-
-      - name: Build kernel
+- name: Build kernel
         run: |
           export ARCH=arm64
           export KBUILD_BUILD_USER="Gemini"
@@ -46,41 +13,31 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1"
 
-          # DYNAMIC SEARCH: This finds the actual config file regardless of subfolder
-          echo "Searching for config..."
-          # Look for any file ending in a52xq_eur_open_defconfig inside the configs folder
-          REAL_CONF_PATH=$(find arch/arm64/configs/ -name "a52xq_eur_open_defconfig" | head -n 1)
+          # 1. Create the output directory
+          mkdir -p out
+
+          # 2. Merge the base Qualcomm config with the Samsung fragment
+          # Most SM7225 (Lito) kernels use lito_defconfig as the base
+          echo "Merging configs..."
           
-          if [ -z "$REAL_CONF_PATH" ]; then
-            echo "Searching for any a52xq config as fallback..."
-            REAL_CONF_PATH=$(find arch/arm64/configs/ -name "*a52xq*" | head -n 1)
+          # Check which base exists
+          if [ -f "arch/arm64/configs/vendor/lito-perf_defconfig" ]; then
+              BASE_CONF="vendor/lito-perf_defconfig"
+          else
+              BASE_CONF="vendor/lito_defconfig"
           fi
-
-          if [ -z "$REAL_CONF_PATH" ]; then
-            echo "ERROR: Could not find any config file for a52xq!"
-            echo "Listing files in arch/arm64/configs/ to help you debug:"
-            ls -R arch/arm64/configs/
-            exit 1
-          fi
-
-          # Strip the 'arch/arm64/configs/' prefix to give 'make' what it wants
-          # e.g., 'arch/arm64/configs/vendor/a52xq_eur_open_defconfig' -> 'vendor/a52xq_eur_open_defconfig'
-          FINAL_CONF=$(echo $REAL_CONF_PATH | sed 's|arch/arm64/configs/||')
           
-          echo "Found config at: $REAL_CONF_PATH"
-          echo "Passing to make: $FINAL_CONF"
+          # The fragment we found earlier
+          SAMSUNG_FRAGMENT="vendor/samsung/a52xq.config"
 
-          # 1. Configure
-          make $MAKE_ARGS $FINAL_CONF
+          echo "Base: $BASE_CONF | Fragment: $SAMSUNG_FRAGMENT"
 
-          # 2. Build
+          # Apply base first
+          make $MAKE_ARGS $BASE_CONF
+          
+          # Apply the Samsung fragment on top of the generated .config
+          # We use the 'scripts/kconfig/merge_config.sh' tool built into the kernel
+          ARCH=arm64 ./scripts/kconfig/merge_config.sh -O out out/.config arch/arm64/configs/$SAMSUNG_FRAGMENT
+
+          # 3. Final Build
           make -j$(nproc --all) $MAKE_ARGS
-
-      - name: Upload kernel image
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-a52xq
-          path: |
-            out/arch/arm64/boot/Image
-            out/arch/arm64/boot/Image.gz
-            out/arch/arm64/boot/dtbo.img
