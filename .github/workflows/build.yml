@@ -1,4 +1,4 @@
-name: Build Kernel
+name: Build kernel
 
 on:
   push:
@@ -8,7 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout kernel source
         uses: actions/checkout@v4
@@ -38,7 +37,6 @@ jobs:
           export KBUILD_BUILD_HOST="GitHub-Actions"
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$PATH"
           
-          # We use -Wno-error to ensure minor code mismatches don't stop the build
           MAKE_ARGS="ARCH=arm64 \
             O=out \
             CC=clang \
@@ -46,27 +44,23 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             LLVM=1 \
             LLVM_IAS=1 \
-            KCFLAGS=-Wno-implicit-function-declaration -Wno-argument-mismatch"
+            KCFLAGS=-Wno-implicit-function-declaration\ -Wno-argument-mismatch"
 
           mkdir -p out
 
-          # Identify Base Config
           if [ -f "arch/arm64/configs/vendor/lito-perf_defconfig" ]; then
               BASE_CONF="vendor/lito-perf_defconfig"
           else
               BASE_CONF="vendor/lito_defconfig"
           fi
 
-          # 1. Generate config
           make $MAKE_ARGS $BASE_CONF
 
-          # 2. Merge Samsung Fragment
           if [ -f "arch/arm64/configs/vendor/samsung/a52xq.config" ]; then
               cat arch/arm64/configs/vendor/samsung/a52xq.config >> out/.config
               make $MAKE_ARGS olddefconfig
           fi
 
-          # 3. Compile
           make -j$(nproc --all) $MAKE_ARGS
 
       - name: Upload kernel image
