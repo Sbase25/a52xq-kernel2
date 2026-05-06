@@ -5,6 +5,7 @@
           export KBUILD_BUILD_HOST="GitHub-Actions"
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$PATH"
           
+          # Define compiler arguments
           MAKE_ARGS="ARCH=arm64 \
             O=out \
             CC=clang \
@@ -13,31 +14,33 @@
             LLVM=1 \
             LLVM_IAS=1"
 
-          # 1. Create the output directory
+          # 1. Prepare Output Directory
           mkdir -p out
 
-          # 2. Merge the base Qualcomm config with the Samsung fragment
-          # Most SM7225 (Lito) kernels use lito_defconfig as the base
-          echo "Merging configs..."
-          
-          # Check which base exists
+          # 2. Determine Base Config
+          # Lito is the codename for SM7225/750G
           if [ -f "arch/arm64/configs/vendor/lito-perf_defconfig" ]; then
               BASE_CONF="vendor/lito-perf_defconfig"
-          else
+          elif [ -f "arch/arm64/configs/vendor/lito_defconfig" ]; then
               BASE_CONF="vendor/lito_defconfig"
+          else
+              # Fallback to search if the above paths are slightly different
+              BASE_CONF=$(find arch/arm64/configs/vendor/ -name "lito*_defconfig" | head -n 1 | sed 's|arch/arm64/configs/||')
           fi
+
+          echo "Base Config: $BASE_CONF"
           
-          # The fragment we found earlier
-          SAMSUNG_FRAGMENT="vendor/samsung/a52xq.config"
-
-          echo "Base: $BASE_CONF | Fragment: $SAMSUNG_FRAGMENT"
-
-          # Apply base first
+          # 3. Create the base .config
           make $MAKE_ARGS $BASE_CONF
-          
-          # Apply the Samsung fragment on top of the generated .config
-          # We use the 'scripts/kconfig/merge_config.sh' tool built into the kernel
-          ARCH=arm64 ./scripts/kconfig/merge_config.sh -O out out/.config arch/arm64/configs/$SAMSUNG_FRAGMENT
 
-          # 3. Final Build
+          # 4. Merge the Samsung Fragment
+          # Instead of merge_config.sh (which is picky about paths), we append and resync
+          echo "Merging Samsung fragment: arch/arm64/configs/vendor/samsung/a52xq.config"
+          cat arch/arm64/configs/vendor/samsung/a52xq.config >> out/.config
+          
+          # 5. Resync the config (This is the 'magic' step to fix the '.config does not exist' error)
+          # 'olddefconfig' takes the current .config and provides default values for any new symbols
+          make $MAKE_ARGS olddefconfig
+
+          # 6. Final Compilation
           make -j$(nproc --all) $MAKE_ARGS
