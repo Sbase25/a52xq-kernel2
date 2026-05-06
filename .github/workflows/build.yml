@@ -31,6 +31,11 @@ jobs:
           tar -xf master.tar.gz --strip-components=1 -C $GITHUB_WORKSPACE/toolchains/clang
           rm master.tar.gz
 
+      - name: Verify Config Location
+        run: |
+          echo "Checking for defconfig files..."
+          find arch/arm64/configs/ -name "*a52xq*"
+
       - name: Build kernel
         run: |
           export ARCH=arm64
@@ -38,22 +43,27 @@ jobs:
           export KBUILD_BUILD_HOST="GitHub-Actions"
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$PATH"
           
-          # Arguments for the make command
-          # Note: Added CLANG_TRIPLE to help the compiler find the right headers
+          # Force use of Clang and provided cross-compilers
           MAKE_ARGS="ARCH=arm64 \
             O=out \
             CC=clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             LLVM=1 \
             LLVM_IAS=1"
 
-          # Step 1: Initialize the configuration
-          # We use the 'vendor/' prefix because it's a subfolder in arch/arm64/configs
-          make $MAKE_ARGS vendor/a52xq_eur_open_defconfig
-
-          # Step 2: Build the Image and DTBO
+          # Samsung SM7225 kernels often put the 'vendor' configs in a specific subfolder.
+          # We try the vendor path first, then the root config path.
+          if [ -f "arch/arm64/configs/vendor/a52xq_eur_open_defconfig" ]; then
+              CONF="vendor/a52xq_eur_open_defconfig"
+          else
+              CONF="a52xq_eur_open_defconfig"
+          fi
+          
+          echo "Using config: $CONF"
+          make $MAKE_ARGS $CONF
+          
+          # Build
           make -j$(nproc --all) $MAKE_ARGS
 
       - name: Upload kernel image
