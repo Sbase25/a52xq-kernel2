@@ -1,11 +1,46 @@
-- name: Build kernel
+name: Build Kernel
+
+on:
+  push:
+    branches: [ lineage-23.2 ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          repository: samsung-sm7225/android_kernel_samsung_sm7225
+          ref: lineage-23.2
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y bc bison flex libssl-dev libelf-dev \
+            python3 python-is-python3 gcc-aarch64-linux-gnu \
+            build-essential libncurses-dev xz-utils curl git
+
+      - name: Download Proton Clang
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/toolchains/clang
+          curl -LO "https://github.com/kdrag0n/proton-clang/archive/refs/heads/master.tar.gz"
+          tar -xf master.tar.gz --strip-components=1 -C $GITHUB_WORKSPACE/toolchains/clang
+          rm master.tar.gz
+
+      - name: Build kernel
         run: |
           export ARCH=arm64
           export KBUILD_BUILD_USER="Gemini"
           export KBUILD_BUILD_HOST="GitHub-Actions"
+          
+          # Add Clang AND its internal bin directory to PATH
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$PATH"
           
-          # Define compiler arguments
+          # Setup Make Arguments
           MAKE_ARGS="ARCH=arm64 \
             O=out \
             CC=clang \
@@ -14,33 +49,39 @@
             LLVM=1 \
             LLVM_IAS=1"
 
-          # 1. Prepare Output Directory
+          # 1. Create output directory
           mkdir -p out
 
-          # 2. Determine Base Config
-          # Lito is the codename for SM7225/750G
+          # 2. Identify the Base Config (Lito/SM7225)
           if [ -f "arch/arm64/configs/vendor/lito-perf_defconfig" ]; then
               BASE_CONF="vendor/lito-perf_defconfig"
           elif [ -f "arch/arm64/configs/vendor/lito_defconfig" ]; then
               BASE_CONF="vendor/lito_defconfig"
           else
-              # Fallback to search if the above paths are slightly different
               BASE_CONF=$(find arch/arm64/configs/vendor/ -name "lito*_defconfig" | head -n 1 | sed 's|arch/arm64/configs/||')
           fi
 
-          echo "Base Config: $BASE_CONF"
-          
-          # 3. Create the base .config
+          echo "Using Base Config: $BASE_CONF"
+
+          # 3. Generate the initial .config
           make $MAKE_ARGS $BASE_CONF
 
-          # 4. Merge the Samsung Fragment
-          # Instead of merge_config.sh (which is picky about paths), we append and resync
-          echo "Merging Samsung fragment: arch/arm64/configs/vendor/samsung/a52xq.config"
-          cat arch/arm64/configs/vendor/samsung/a52xq.config >> out/.config
-          
-          # 5. Resync the config (This is the 'magic' step to fix the '.config does not exist' error)
-          # 'olddefconfig' takes the current .config and provides default values for any new symbols
-          make $MAKE_ARGS olddefconfig
+          # 4. Inject the Samsung a52xq fragment
+          # This specifically fixes the '.config does not exist' error
+          if [ -f "arch/arm64/configs/vendor/samsung/a52xq.config" ]; then
+              echo "Merging Samsung fragment..."
+              cat arch/arm64/configs/vendor/samsung/a52xq.config >> out/.config
+              make $MAKE_ARGS olddefconfig
+          fi
 
-          # 6. Final Compilation
+          # 5. Compile the kernel
           make -j$(nproc --all) $MAKE_ARGS
+
+      - name: Upload kernel image
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-a52xq
+          path: |
+            out/arch/arm64/boot/Image
+            out/arch/arm64/boot/Image.gz
+            out/arch/arm64/boot/dtbo.img
