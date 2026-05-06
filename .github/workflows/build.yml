@@ -1,9 +1,35 @@
-- name: Install dependencies
+name: Build Kernel
+
+on:
+  push:
+    branches: [ lineage-23.2 ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          repository: samsung-sm7225/android_kernel_samsung_sm7225
+          ref: lineage-23.2
+          fetch-depth: 1
+
+      - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y bc bison flex libssl-dev libelf-dev \
             python3 python-is-python3 gcc-aarch64-linux-gnu \
             build-essential libncurses-dev xz-utils curl git lz4 liblz4-tool
+
+      - name: Download Proton Clang
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/toolchains/clang
+          curl -LO "https://github.com/kdrag0n/proton-clang/archive/refs/heads/master.tar.gz"
+          tar -xf master.tar.gz --strip-components=1 -C $GITHUB_WORKSPACE/toolchains/clang
+          rm master.tar.gz
 
       - name: Build kernel
         run: |
@@ -12,7 +38,6 @@
           export KBUILD_BUILD_HOST="GitHub-Actions"
           export PATH="$GITHUB_WORKSPACE/toolchains/clang/bin:$PATH"
           
-          # Added KCFLAGS to prevent compiler memory exhaustion on large drivers
           MAKE_ARGS="ARCH=arm64 \
             O=out \
             CC=clang \
@@ -24,22 +49,30 @@
 
           mkdir -p out
 
-          # 1. Identify Base Config
+          # Determine Base Config
           if [ -f "arch/arm64/configs/vendor/lito-perf_defconfig" ]; then
               BASE_CONF="vendor/lito-perf_defconfig"
           else
               BASE_CONF="vendor/lito_defconfig"
           fi
 
-          # 2. Generate initial .config
+          # Generate config
           make $MAKE_ARGS $BASE_CONF
 
-          # 3. Merge Samsung Fragment and Validate
+          # Merge Samsung Fragment
           if [ -f "arch/arm64/configs/vendor/samsung/a52xq.config" ]; then
               cat arch/arm64/configs/vendor/samsung/a52xq.config >> out/.config
               make $MAKE_ARGS olddefconfig
           fi
 
-          # 4. Compile with optimized thread count
-          # We use -k (keep going) so we can see ALL errors if it fails
-          make -j$(nproc --all) $MAKE_ARGS || make $MAKE_ARGS
+          # Compile
+          make -j$(nproc --all) $MAKE_ARGS
+
+      - name: Upload kernel image
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-a52xq
+          path: |
+            out/arch/arm64/boot/Image
+            out/arch/arm64/boot/Image.gz
+            out/arch/arm64/boot/dtbo.img
